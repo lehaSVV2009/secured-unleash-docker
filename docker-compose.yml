@@ -1,6 +1,30 @@
 version: "3.3"
 services:
-  web:
+
+  # Azure OAuth2 proxy
+  auth_proxy:
+    image: mryu/oauth2-proxy:2.1
+    ports:
+      - "80:4180"
+    links:
+      - "unleash:unleash"
+    command: |
+      --cookie-secure=false
+      --upstream="http://unleash:4242"
+      --http-address="0.0.0.0:4180"
+      --redirect-url="http://localhost:80/"
+      --email-domain="*"
+      --provider="azure"
+      --azure-tenant="my-azure-directory-uuid"
+      --skip-auth-regex="\/api\/client.*"
+    environment:
+      OAUTH2_PROXY_COOKIE_SECRET: SECRET # SECRET is a valid cookie secret name
+      OAUTH2_PROXY_CLIENT_ID: my-client-id
+      OAUTH2_PROXY_CLIENT_SECRET: my-client-secret
+
+  # NGINX with unleash frontend and backend
+  # upstream app that is protected by the oauth2_proxy
+  unleash:
     build: .
     ports:
       - "4242:4242"
@@ -8,13 +32,15 @@ services:
       DATABASE_URL: postgres://postgres:unleash@db/postgres
     depends_on:
       - db
-    command: > 
+    command: >
       sh -c "
         while ! nc -z db 5432; do
           echo 'Postgres is unavailable.'
           sleep 1
         done
         npm run start"
+
+  # DB
   db:
     expose:
       - "5432"
